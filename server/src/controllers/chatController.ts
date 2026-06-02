@@ -318,7 +318,7 @@ export async function getChatMessages(req: Request, res: Response) {
 
     // If 'before' timestamp is provided, get messages before that time
     if (before) {
-      query = query.where('created_at', '<', before);
+      query = query.where('created_at', '<', before as any);
     }
 
     const messages = await query;

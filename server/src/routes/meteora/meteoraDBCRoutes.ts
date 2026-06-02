@@ -179,19 +179,19 @@ const meteoraDBCService = new MeteoraDBCService(connection);
 //   }
 // });
 
-router.post('/my-test-api', async (req, res) => {
-  try {
-    const response = await meteoraDBCService.myTestFunc();
-    console.log("response: ", response);
-    res.json(response);
-  } catch (error) {
-    console.error('Error in createPartnerMetadata route:', error);
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
+// router.post('/my-test-api', async (req, res) => {
+//   try {
+//     const response = await meteoraDBCService.myTestFunc();
+//     console.log("response: ", response);
+//     res.json(response);
+//   } catch (error) {
+//     console.error('Error in createPartnerMetadata route:', error);
+//     res.status(500).json({
+//       success: false,
+//       error: error instanceof Error ? error.message : 'Unknown error',
+//     });
+//   }
+// });
 /**
  * Build curve and create config
  * @route POST /api/meteora/build-curve
@@ -637,7 +637,7 @@ router.post('/creator-withdraw-surplus', async (req: Request<{}, {}, types.Creat
 router.get('/pool/:poolAddress', async (req: Request, res: Response) => {
   try {
     const { poolAddress } = req.params;
-    const result = await meteoraDBCService.getPoolState(poolAddress);
+    const result = await meteoraDBCService.getPoolState(poolAddress as string);
     res.json(result);
   } catch (error) {
     console.error('Error in getPoolState route:', error);
@@ -655,7 +655,7 @@ router.get('/pool/:poolAddress', async (req: Request, res: Response) => {
 router.get('/config/:configAddress', async (req: Request, res: Response) => {
   try {
     const { configAddress } = req.params;
-    const result = await meteoraDBCService.getPoolConfigState(configAddress);
+    const result = await meteoraDBCService.getPoolConfigState(configAddress as string);
     res.json(result);
   } catch (error) {
     console.error('Error in getPoolConfigState route:', error);
@@ -673,7 +673,7 @@ router.get('/config/:configAddress', async (req: Request, res: Response) => {
 router.get('/pool/:poolAddress/progress', async (req: Request, res: Response) => {
   try {
     const { poolAddress } = req.params;
-    const result = await meteoraDBCService.getPoolCurveProgress(poolAddress);
+    const result = await meteoraDBCService.getPoolCurveProgress(poolAddress as string);
     res.json(result);
   } catch (error) {
     console.error('Error in getPoolCurveProgress route:', error);
@@ -691,7 +691,7 @@ router.get('/pool/:poolAddress/progress', async (req: Request, res: Response) =>
 router.get('/pool/:poolAddress/migrationQuoteThreshold', async (req: Request, res: Response) => {
   try {
     const { poolAddress } = req.params;
-    const result = await meteoraDBCService.getPoolMigrationQuoteThreshold(poolAddress);
+    const result = await meteoraDBCService.getPoolMigrationQuoteThreshold(poolAddress as string);
     res.json(result);
   } catch (error) {
     console.error('Error in getPoolMigrationQuoteThreshold route:', error);
@@ -708,7 +708,7 @@ router.get('/pool/:poolAddress/migrationQuoteThreshold', async (req: Request, re
 router.get('/pool/:poolAddress/fees', async (req: Request, res: Response) => {
   try {
     const { poolAddress } = req.params;
-    const result = await meteoraDBCService.getPoolFeeMetrics(poolAddress);
+    const result = await meteoraDBCService.getPoolFeeMetrics(poolAddress as string);
     res.json(result);
   } catch (error) {
     console.error('Error in getPoolFeeMetrics route:', error);

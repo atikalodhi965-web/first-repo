@@ -188,6 +188,7 @@ export interface CreatePartnerMetadataParam {
 export interface ClaimTradingFeeParam {
   pool: string;
   feeClaimer: string;
+  payer: string;
   maxBaseAmount: string;
   maxQuoteAmount: string;
 }

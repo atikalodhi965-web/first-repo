@@ -25,14 +25,14 @@ import {
   GET_TOP_HOLDERS_QUERY,
   MULTIPLE_CHECK_LAST_HOURS,
 } from "../queries/allQueryFile";
-import { sanitizeString } from "../services/bitQueryService";
+// import { sanitizeString } from "../services/bitQueryService";
 import { computeLiquidityUSD, dedupeByMintAddress, dedupeByMintCategory, getMarketMetricsBatch, getTokenBondingInfo, getTokenHolderStats, getTokenLiquidity, getTokenTradeStats, toBigIntSafe, toDecimalSafe } from "../utils/tokenRelatedUtils";
 import {
   decodeMetadataBatch,
   Metadata,
   getCreationTimeAndSupplyBatch,
 } from "../utils/tokenRelatedUtils"; // assume both exports exist here
-import { createPortfolioSnapshot } from "../controllers/pnlController";
+// import { createPortfolioSnapshot } from "../controllers/pnlController";
 import { getCollectInstructionDataSerializer } from "@metaplex-foundation/mpl-core";
 import { WebSocketService } from "../service/websocketService";
 

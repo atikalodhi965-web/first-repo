@@ -231,121 +231,121 @@ export class MeteoraDBCService {
   //   }
   // }
 
-  async myTestFunc() {
-    try {
-      // 1️⃣ Generate new config account keypair
-      const configKeypair = Keypair.generate();
-      const configPubkey = configKeypair.publicKey;
-      console.log("Generated Config Pubkey:", configPubkey.toString());
+  // async myTestFunc() {
+  //   try {
+  //     // 1️⃣ Generate new config account keypair
+  //     const configKeypair = Keypair.generate();
+  //     const configPubkey = configKeypair.publicKey;
+  //     console.log("Generated Config Pubkey:", configPubkey.toString());
 
-      // 2️⃣ Build curve config with hardcoded params
-      const curveConfig = buildCurveWithMarketCap({
-        totalTokenSupply: 1_000_000_000,
-        initialMarketCap: 100,
-        migrationMarketCap: 3000,
-        migrationOption: MigrationOption.MET_DAMM_V2,
-        tokenBaseDecimal: TokenDecimal.SIX,
-        tokenQuoteDecimal: TokenDecimal.NINE,
-        lockedVestingParam: {
-          totalLockedVestingAmount: 0,
-          numberOfVestingPeriod: 0,
-          cliffUnlockAmount: 0,
-          totalVestingDuration: 0,
-          cliffDurationFromMigrationTime: 0,
-        },
-        baseFeeParams: {
-          baseFeeMode: BaseFeeMode.FeeSchedulerLinear,
-          feeSchedulerParam: {
-            startingFeeBps: 100,
-            endingFeeBps: 100,
-            numberOfPeriod: 0,
-            totalDuration: 0,
-          },
-        },
-        dynamicFeeEnabled: true,
-        activationType: ActivationType.Slot,
-        collectFeeMode: CollectFeeMode.QuoteToken,
-        migrationFeeOption: MigrationFeeOption.Customizable,
-        tokenType: TokenType.SPL,
-        partnerLpPercentage: 0,
-        creatorLpPercentage: 0,
-        partnerLockedLpPercentage: 100,
-        creatorLockedLpPercentage: 0,
-        creatorTradingFeePercentage: 0,
-        leftover: 0,
-        tokenUpdateAuthority: TokenUpdateAuthorityOption.Immutable,
-        migrationFee: {
-          feePercentage: 0,
-          creatorFeePercentage: 0,
-        },
-        migratedPoolFee: {
-          collectFeeMode: CollectFeeMode.QuoteToken,
-          dynamicFee: DammV2DynamicFeeMode.Enabled,
-          poolFeeBps: 250,
-        },
-      });
+  //     // 2️⃣ Build curve config with hardcoded params
+  //     const curveConfig = buildCurveWithMarketCap({
+  //       totalTokenSupply: 1_000_000_000,
+  //       initialMarketCap: 100,
+  //       migrationMarketCap: 3000,
+  //       migrationOption: MigrationOption.MET_DAMM_V2,
+  //       tokenBaseDecimal: TokenDecimal.SIX,
+  //       tokenQuoteDecimal: TokenDecimal.NINE,
+  //       lockedVestingParam: {
+  //         totalLockedVestingAmount: 0,
+  //         numberOfVestingPeriod: 0,
+  //         cliffUnlockAmount: 0,
+  //         totalVestingDuration: 0,
+  //         cliffDurationFromMigrationTime: 0,
+  //       },
+  //       baseFeeParams: {
+  //         baseFeeMode: BaseFeeMode.FeeSchedulerLinear,
+  //         feeSchedulerParam: {
+  //           startingFeeBps: 100,
+  //           endingFeeBps: 100,
+  //           numberOfPeriod: 0,
+  //           totalDuration: 0,
+  //         },
+  //       },
+  //       dynamicFeeEnabled: true,
+  //       activationType: ActivationType.Slot,
+  //       collectFeeMode: CollectFeeMode.QuoteToken,
+  //       migrationFeeOption: MigrationFeeOption.Customizable,
+  //       tokenType: TokenType.SPL,
+  //       partnerLpPercentage: 0,
+  //       creatorLpPercentage: 0,
+  //       partnerLockedLpPercentage: 100,
+  //       creatorLockedLpPercentage: 0,
+  //       creatorTradingFeePercentage: 0,
+  //       leftover: 0,
+  //       tokenUpdateAuthority: TokenUpdateAuthorityOption.Immutable,
+  //       migrationFee: {
+  //         feePercentage: 0,
+  //         creatorFeePercentage: 0,
+  //       },
+  //       migratedPoolFee: {
+  //         collectFeeMode: CollectFeeMode.QuoteToken,
+  //         dynamicFee: DammV2DynamicFeeMode.Enabled,
+  //         poolFeeBps: 250,
+  //       },
+  //     });
 
-      // 3️⃣ Define fixed addresses
-      const feeClaimer = new PublicKey("FfGV6BR1Jk9dJRq59xFi4G2fQRcieCFTxmD5AB6t2gwv");
-      const leftoverReceiver = new PublicKey("FfGV6BR1Jk9dJRq59xFi4G2fQRcieCFTxmD5AB6t2gwv");
-      const payer = new PublicKey("8eBuwmzy1KJxV8NPRg52Ks2Da7KZ8DcwNf37yXw9GrNJ");
-      const quoteMint = new PublicKey("So11111111111111111111111111111111111111112");
+  //     // 3️⃣ Define fixed addresses
+  //     const feeClaimer = new PublicKey("FfGV6BR1Jk9dJRq59xFi4G2fQRcieCFTxmD5AB6t2gwv");
+  //     const leftoverReceiver = new PublicKey("FfGV6BR1Jk9dJRq59xFi4G2fQRcieCFTxmD5AB6t2gwv");
+  //     const payer = new PublicKey("8eBuwmzy1KJxV8NPRg52Ks2Da7KZ8DcwNf37yXw9GrNJ");
+  //     const quoteMint = new PublicKey("So11111111111111111111111111111111111111112");
 
-      // 4️⃣ Build transaction
-      let transaction = await this.client.partner.createConfig({
-        config: configPubkey, // use generated keypair
-        feeClaimer,
-        leftoverReceiver,
-        payer,
-        quoteMint,
-        ...curveConfig,
-      });
+  //     // 4️⃣ Build transaction
+  //     let transaction = await this.client.partner.createConfig({
+  //       config: configPubkey, // use generated keypair
+  //       feeClaimer,
+  //       leftoverReceiver,
+  //       payer,
+  //       quoteMint,
+  //       ...curveConfig,
+  //     });
 
-      // 5️⃣ Add commission transfer (optional)
-      const commissionWallet = new PublicKey(COMMISSION_WALLET);
-      const fixedCommissionAmount = COMMISSION_AMOUNT;
+  //     // 5️⃣ Add commission transfer (optional)
+  //     const commissionWallet = new PublicKey(COMMISSION_WALLET);
+  //     const fixedCommissionAmount = COMMISSION_AMOUNT;
 
-      const finalCommissionAmount = Math.max(MIN_COMMISSION, Math.min(fixedCommissionAmount, MAX_COMMISSION));
-      console.log(`[buildCurveAndCreateConfigByMarketCap] Adding commission of ${finalCommissionAmount / 1_000_000_000} SOL to:`, commissionWallet.toString());
+  //     const finalCommissionAmount = Math.max(MIN_COMMISSION, Math.min(fixedCommissionAmount, MAX_COMMISSION));
+  //     console.log(`[buildCurveAndCreateConfigByMarketCap] Adding commission of ${finalCommissionAmount / 1_000_000_000} SOL to:`, commissionWallet.toString());
 
-      const transferIx = SystemProgram.transfer({
-        fromPubkey: payer,
-        toPubkey: commissionWallet,
-        lamports: finalCommissionAmount,
-      });
+  //     const transferIx = SystemProgram.transfer({
+  //       fromPubkey: payer,
+  //       toPubkey: commissionWallet,
+  //       lamports: finalCommissionAmount,
+  //     });
 
-      transaction.add(transferIx);
+  //     transaction.add(transferIx);
 
-      // 6️⃣ Set blockhash & fee payer
-      transaction.feePayer = payer;
-      if (!transaction.recentBlockhash) {
-        const { blockhash } = await this.client.connection.getLatestBlockhash();
-        transaction.recentBlockhash = blockhash;
-      }
+  //     // 6️⃣ Set blockhash & fee payer
+  //     transaction.feePayer = payer;
+  //     if (!transaction.recentBlockhash) {
+  //       const { blockhash } = await this.client.connection.getLatestBlockhash();
+  //       transaction.recentBlockhash = blockhash;
+  //     }
 
-      // 7️⃣ Partial sign with config keypair
-      transaction.partialSign(configKeypair);
+  //     // 7️⃣ Partial sign with config keypair
+  //     transaction.partialSign(configKeypair);
 
-      // 8️⃣ Serialize for frontend
-      // const serializedTransaction = transaction.serialize({
-      //   requireAllSignatures: false,
-      //   verifySignatures: false,
-      // }).toString("base64");
-      const serializedTransaction = await this.prepareTransaction(transaction);
+  //     // 8️⃣ Serialize for frontend
+  //     // const serializedTransaction = transaction.serialize({
+  //     //   requireAllSignatures: false,
+  //     //   verifySignatures: false,
+  //     // }).toString("base64");
+  //     const serializedTransaction = await this.prepareTransaction(transaction);
 
-      return {
-        success: true,
-        transaction: serializedTransaction, // frontend will sign & send
-        configAddress: configPubkey.toString(),
-      };
-    } catch (error) {
-      console.error("Error in myTestFunc:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
-    }
-  }
+  //     return {
+  //       success: true,
+  //       transaction: serializedTransaction, // frontend will sign & send
+  //       configAddress: configPubkey.toString(),
+  //     };
+  //   } catch (error) {
+  //     console.error("Error in myTestFunc:", error);
+  //     return {
+  //       success: false,
+  //       error: error instanceof Error ? error.message : "Unknown error",
+  //     };
+  //   }
+  // }
 
   /**
    * Build curve and create config
@@ -1143,7 +1143,7 @@ export class MeteoraDBCService {
       console.log("Processed sdkParams for createPoolAndBuy:", sdkParams);
 
       // Call SDK → returns both txs
-      const { createPoolTx, swapBuyTx } = await this.client.pool.createPoolWithFirstBuy(sdkParams as any);
+      const tx = await this.client.pool.createPoolWithFirstBuy(sdkParams as any);
 
       // Commission transfer instruction
       const commissionWallet = new PublicKey(COMMISSION_WALLET);
@@ -1161,9 +1161,9 @@ export class MeteoraDBCService {
 
       // ✅ Bundle all instructions into ONE transaction
       const bundledTx = new Transaction();
-      bundledTx.add(...createPoolTx.instructions);   // pool creation
-      if (swapBuyTx) {
-        bundledTx.add(...swapBuyTx.instructions);   // first buy
+      bundledTx.add(...tx.instructions);   // pool creation
+      if (tx) {
+        bundledTx.add(...tx.instructions);   // first buy
       }
       bundledTx.add(transferIx);                    // commission
 
@@ -1999,7 +1999,7 @@ export class MeteoraDBCService {
 
       // Return quote information with safe property access
       return {
-        estimatedOutput: quote.amountOut?.toString() || "0",
+        estimatedOutput: quote.outputAmount?.toString() || "0",
         minimumAmountOut: quote.minimumAmountOut?.toString() || "0",
         price: "0", // SDK may not provide this directly
         priceImpact: "0" // SDK may not provide this directly
