@@ -88,7 +88,7 @@ export async function finalizeTokenService(
       throw new Error('Missing required fields');
     }
 
-    const exists = await knex('coins').where({ mint_address: mintAddress }).first();
+    const exists = await trx('coins').where({ mint_address: mintAddress }).first();
     if (exists) throw new Error('Token with this mint address already exists');
 
     let currentPrice = 0;
@@ -156,16 +156,6 @@ export async function finalizeTokenService(
       video_url: videoUrl,
       thumbnail_url: thumbnailUrl,
     });
-
-    // coin_videos (if video exists)
-    if (videoUrl) {
-      await trx('coin_videos').insert({
-        coin_id: mintAddress,
-        creator_id: creatorId,
-        video_url: videoUrl,
-        thumbnail_url: thumbnailUrl,
-      });
-    }
 
     // coin_liquidity_pools
     if (poolAddress) {

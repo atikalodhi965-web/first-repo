@@ -28,7 +28,7 @@
     "@metaplex-foundation/umi": "^1.2.0",
     "@metaplex-foundation/umi-bundle-defaults": "^1.2.0",
     "@metaplex-foundation/umi-web3js-adapters": "^1.5.1",
-    "@meteora-ag/dynamic-bonding-curve-sdk": "^1.5.7",
+    "@meteora-ag/dynamic-bonding-curve-sdk": "1.5.7",
     "@mux/mux-node": "^12.8.1",
     "@pump-fun/pump-swap-sdk": "^0.0.1-beta.22",
     "@raydium-io/raydium-sdk-v2": "0.1.126-alpha",

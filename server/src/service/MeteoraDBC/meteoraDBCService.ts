@@ -1142,15 +1142,20 @@ export class MeteoraDBCService {
 
       console.log("Processed sdkParams for createPoolAndBuy:", sdkParams);
 
-      // Call SDK → returns both txs
-      const tx = await this.client.pool.createPoolWithFirstBuy(sdkParams as any);
+      // 1. Call SDK
+      const transaction = await this.client.pool.createPoolWithFirstBuy(sdkParams as any);
 
-      // Commission transfer instruction
+      // 2. Derive pool address
+      const poolAddress = deriveDbcPoolAddress(
+        new PublicKey("So11111111111111111111111111111111111111112"),
+        sdkParams.createPoolParam.baseMint,
+        sdkParams.createPoolParam.config
+      ).toString();
+
+      // 3. Prepare Commission instruction
       const commissionWallet = new PublicKey(COMMISSION_WALLET);
       const fixedCommissionAmount = COMMISSION_AMOUNT;
       const finalCommissionAmount = Math.max(MIN_COMMISSION, Math.min(fixedCommissionAmount, MAX_COMMISSION));
-
-      console.log(`[createPoolAndBuy] Adding commission of ${finalCommissionAmount / 1_000_000_000} SOL to:`, commissionWallet.toString());
 
       const { SystemProgram } = require('@solana/web3.js');
       const transferIx = SystemProgram.transfer({
@@ -1159,44 +1164,23 @@ export class MeteoraDBCService {
         lamports: finalCommissionAmount,
       });
 
-      // ✅ Bundle all instructions into ONE transaction
-      const bundledTx = new Transaction();
-      bundledTx.add(...tx.instructions);   // pool creation
-      if (tx) {
-        bundledTx.add(...tx.instructions);   // first buy
+      // 4. Add commission to the same transaction
+      transaction.add(transferIx);
+      // Set the fee payer explicitly
+      transaction.feePayer = this.toPublicKey(params.createPoolParam.payer);
+
+      // 5. Get a recent blockhash before trying to sign
+      if (!transaction.recentBlockhash) {
+        const { blockhash } = await this.client.connection.getLatestBlockhash();
+        transaction.recentBlockhash = blockhash;
       }
-      bundledTx.add(transferIx);                    // commission
 
-      // Attach blockhash & fee payer
-      const { blockhash } = await this.client.connection.getLatestBlockhash();
-      bundledTx.recentBlockhash = blockhash;
-      bundledTx.feePayer = this.toPublicKey(params.createPoolParam.payer);
+      // 6. Partial sign with baseMintKeypair (required for pool creation)
+      transaction.partialSign(baseMintKeypair);
 
-      // ✅ Partial sign with baseMint keypair
-      bundledTx.partialSign(baseMintKeypair);
-      // Load payer keypair
-      // const privateKeystring = '4TaYKzrGkWhQVeEeohqDwcjK4xL1YJ9hqqghXwcZ9FBBgiYqtKGKx9zjc2pVjginCKRagJqnyUY5FbdbHdJxdUG1';
-      // const payerKeyPair = Keypair.fromSecretKey(bs58.decode(privateKeystring));
+      // 7. Serialize the single transaction
+      const serializedTransaction = await this.prepareTransaction(transaction);
 
-      // // Sign with required keys
-      // bundledTx.sign(baseMintKeypair, payerKeyPair);
-
-      // // Send transaction
-      // const txid = await this.client.connection.sendRawTransaction(bundledTx.serialize(), {
-      //   skipPreflight: false,
-      //   preflightCommitment: "confirmed",
-      // });
-
-      // console.log("Bundled txid:", txid);
-
-      // Derive pool address
-      const poolAddress = deriveDbcPoolAddress(
-        new PublicKey("So11111111111111111111111111111111111111112"),
-        sdkParams.createPoolParam.baseMint,
-        sdkParams.createPoolParam.config
-      ).toString();
-      const serializedTransaction = await this.prepareTransaction(bundledTx);
-      console.log("serialize transaction for create pool and buy function: ", serializedTransaction);
       return {
         success: true,
         transaction: serializedTransaction,
@@ -1715,7 +1699,7 @@ export class MeteoraDBCService {
    */
   async getPoolCurveProgress(poolAddress: string): Promise<types.ApiResponse> {
     try {
-      const progress  = await this.client.state.getPoolQuoteTokenCurveProgress(poolAddress);
+      const progress = await this.client.state.getPoolQuoteTokenCurveProgress(poolAddress);
 
       return {
         success: true,

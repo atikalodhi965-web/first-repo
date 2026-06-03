@@ -51,8 +51,10 @@ export const videoService = {
     return response.data;
   },
 
-  getVideosByCoin: async (coinId: string) => {
-    const response = await axios.get(`${API_BASE_URL}/videos/coin/${coinId}`);
+  getVideosByCoin: async (coinId: string, userId?: string) => {
+    const response = await axios.get(`${API_BASE_URL}/videos/coin/${coinId}`, {
+      params: { userId }
+    });
     return response.data;
   }
 };

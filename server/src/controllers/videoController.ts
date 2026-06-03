@@ -195,18 +195,53 @@ export async function interactWithVideo(req: Request, res: Response): Promise<vo
       return;
     }
 
+    if (action === 'like' && userId) {
+      // Toggle like logic
+      const existingLike = await knex('video_interactions')
+        .where({ video_id: id, user_id: userId, type: 'like' })
+        .first();
+
+      if (existingLike) {
+        // Unlike
+        await knex('video_interactions')
+          .where({ video_id: id, user_id: userId, type: 'like' })
+          .delete();
+        
+        await knex('coin_videos')
+          .where({ id })
+          .decrement('likes_count', 1);
+        
+        res.json({ success: true, message: 'unliked', liked: false });
+        return;
+      } else {
+        // Like
+        await knex('video_interactions').insert({
+          video_id: id,
+          user_id: userId,
+          type: 'like'
+        });
+        
+        await knex('coin_videos')
+          .where({ id })
+          .increment('likes_count', 1);
+
+        res.json({ success: true, message: 'liked', liked: true });
+        return;
+      }
+    }
+
     const column = action === 'like' ? 'likes_count' : action === 'share' ? 'shares_count' : 'views_count';
     
     await knex('coin_videos')
       .where({ id })
       .increment(column, 1);
 
-    // Optional: Log interaction in video_interactions table
+    // For non-like interactions (view/share), we just record it if userId exists
     if (userId) {
       await knex('video_interactions').insert({
         video_id: id,
         user_id: userId,
-        type: action === 'like' ? 'like' : action === 'view' ? 'view' : 'commented' // Mapping 'view' to 'view', 'like' to 'like'
+        type: action === 'view' ? 'view' : action === 'share' ? 'share' : 'view'
       }).onConflict(['video_id', 'user_id', 'type']).ignore();
     }
 
@@ -223,8 +258,10 @@ export async function interactWithVideo(req: Request, res: Response): Promise<vo
 export async function getVideosByCoin(req: Request, res: Response): Promise<void> {
   try {
     const { coinId } = req.params;
+    const { userId } = req.query as { userId?: string };
+    console.log(`[getVideosByCoin] coinId: ${coinId}, userId: ${userId}`);
 
-    const videos = await knex('coin_videos')
+    let query = knex('coin_videos')
       .select(
         'coin_videos.*',
         'users.username',
@@ -232,7 +269,15 @@ export async function getVideosByCoin(req: Request, res: Response): Promise<void
       )
       .join('users', 'coin_videos.creator_id', 'users.id')
       .where('coin_videos.coin_id', coinId)
-      .andWhere('coin_videos.is_approved', true)
+      .andWhere('coin_videos.is_approved', true);
+
+    if (userId) {
+      query.select(
+        knex.raw('EXISTS(SELECT 1 FROM video_interactions WHERE video_id = coin_videos.id AND user_id = ? AND type = \'like\') as is_liked', [userId])
+      );
+    }
+
+    const videos = await query
       .orderBy('coin_videos.is_pinned', 'desc')
       .orderBy('coin_videos.created_at', 'desc');
 

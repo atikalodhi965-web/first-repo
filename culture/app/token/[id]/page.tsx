@@ -37,8 +37,18 @@ import {
   ThumbsUp,
   Play,
   Video,
-  Pin
+  Pin,
+  Share2,
+  Twitter,
+  Copy,
+  Check
 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
 // Mock tokens database
@@ -274,6 +284,7 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
         if (res.success && res.data) {
           const d = res.data;
           setToken({
+            // ... (keep existing token mapping)
             id: d.id,
             name: d.name || "Unknown Token",
             ticker: d.symbol || "???",
@@ -304,8 +315,8 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
             athMarketCap: parseFloat(d.ath_marketcap || "0"),
           });
 
-          // Fetch videos for this token
-          const vidRes = await videoService.getVideosByCoin(d.id);
+          // Fetch videos with current user ID to get 'is_liked' status
+          const vidRes = await videoService.getVideosByCoin(d.id, authUser?.id);
           if (vidRes.success && vidRes.videos && vidRes.videos.length > 0) {
             setCurrentVideo(vidRes.videos[0]);
           }
@@ -333,17 +344,46 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
   const handleInteraction = async (action: 'like' | 'share' | 'view') => {
     if (!currentVideo?.id) return;
     try {
-      const res = await videoService.interactWithVideo(currentVideo.id, action, authUser?.id);
-      if (res.success) {
-        // Update local state for immediate feedback
+      if (action === 'share') {
+        const shareUrl = window.location.href;
+        navigator.clipboard.writeText(shareUrl);
+        toast.success("Link copied to clipboard!");
+        
+        // Optimistic Update: Increase share count immediately
         setCurrentVideo((prev: any) => ({
           ...prev,
-          [`${action === 'like' ? 'likes' : action === 'share' ? 'shares' : 'views'}_count`]:
-            Number(prev[`${action === 'like' ? 'likes' : action === 'share' ? 'shares' : 'views'}_count`] || 0) + 1
+          shares_count: Number(prev?.shares_count || 0) + 1
         }));
+
+        // Notify backend in background
+        videoService.interactWithVideo(currentVideo.id, 'share', authUser?.id);
+        return;
+      }
+
+      // Optimistically update likes local state for better responsiveness
+      if (action === 'like') {
+        const wasLiked = currentVideo.is_liked;
+        setCurrentVideo((prev: any) => ({
+          ...prev,
+          likes_count: wasLiked ? Math.max(0, Number(prev.likes_count || 0) - 1) : Number(prev.likes_count || 0) + 1,
+          is_liked: !wasLiked
+        }));
+      }
+
+      const res = await videoService.interactWithVideo(currentVideo.id, action, authUser?.id);
+      
+      // If server returned a definitive state, sync it (especially for likes)
+      if (res.success && action === 'like') {
+        setCurrentVideo((prev: any) => ({
+          ...prev,
+          is_liked: res.liked,
+          likes_count: res.liked ? Number(prev.likes_count) : Number(prev.likes_count) // The count was already adjusted optimistically
+        }));
+        toast.success(res.liked ? "Upvoted!" : "Upvote removed");
       }
     } catch (err) {
       console.error(`Error during video ${action}:`, err);
+      // Fallback: If it failed, we could technically revert state here
     }
   };
 
@@ -616,10 +656,10 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                   <div className="relative mb-2">
                     <div className="h-12 w-12 rounded-full border-2 border-white shadow-lg overflow-hidden">
                       <Image
-                        src={token.image}
+                        src={token.creatorImage || token.image}
                         alt="Creator"
                         fill
-                        className="object-cover"
+                        className="object-cover rounded-full"
                       />
                     </div>
                     <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500">
@@ -631,31 +671,61 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                   <div className="flex flex-col items-center">
                     <button
                       onClick={() => handleInteraction('like')}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 hover:bg-black/60 transition-colors"
+                      className={cn(
+                        "flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200",
+                        currentVideo?.is_liked ? "bg-[#4ade80]/20 text-[#4ade80] shadow-[0_0_15px_rgba(74,222,128,0.3)]" : "bg-black/40 text-white hover:bg-black/60"
+                      )}
                     >
-                      <svg className="h-5 w-5 fill-white" viewBox="0 0 24 24">
+                      <svg className={cn("h-5 w-5", currentVideo?.is_liked ? "fill-[#4ade80]" : "fill-white")} viewBox="0 0 24 24">
                         <path d="M12 2L4 10h3v8h10v-8h3L12 2z" />
                       </svg>
                     </button>
-                    <span className="text-white text-xs font-semibold mt-1">
-                      {formatViews(Number(currentVideo?.likes_count || 3108))}
+                    <span className={cn("text-xs font-semibold mt-1", currentVideo?.is_liked ? "text-[#4ade80]" : "text-white")}>
+                      {formatViews(Number(currentVideo?.likes_count || 0))}
                     </span>
                   </div>
 
                   {/* Share - TikTok style */}
                   <div className="flex flex-col items-center">
-                    <button
-                      onClick={() => handleInteraction('share')}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 hover:bg-black/60 transition-colors"
-                    >
-                      <svg className="h-6 w-6" viewBox="0 0 24 24">
-                        <path d="M3 15c0-4 3-7.5 7-8.5V4L21 12l-11 8v-3c-3.5 0-6 1-7 3v-5z" fill="#25F4EE" transform="translate(-1, -1)" />
-                        <path d="M3 15c0-4 3-7.5 7-8.5V4L21 12l-11 8v-3c-3.5 0-6 1-7 3v-5z" fill="#FE2C55" transform="translate(1, 1)" />
-                        <path d="M3 15c0-4 3-7.5 7-8.5V4L21 12l-11 8v-3c-3.5 0-6 1-7 3v-5z" fill="white" />
-                      </svg>
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40 hover:bg-black/60 transition-colors"
+                        >
+                          <svg className="h-6 w-6" viewBox="0 0 24 24">
+                            <path d="M3 15c0-4 3-7.5 7-8.5V4L21 12l-11 8v-3c-3.5 0-6 1-7 3v-5z" fill="#25F4EE" transform="translate(-1, -1)" />
+                            <path d="M3 15c0-4 3-7.5 7-8.5V4L21 12l-11 8v-3c-3.5 0-6 1-7 3v-5z" fill="#FE2C55" transform="translate(1, 1)" />
+                            <path d="M3 15c0-4 3-7.5 7-8.5V4L21 12l-11 8v-3c-3.5 0-6 1-7 3v-5z" fill="white" />
+                          </svg>
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-[#1a1a1a] border-[#2a2a2a] text-white">
+                        <DropdownMenuItem className="focus:bg-[#2a2a2a] cursor-pointer" onClick={() => handleInteraction('share')}>
+                          <Copy className="mr-2 h-4 w-4" />
+                          <span>Copy Link</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="focus:bg-[#2a2a2a] cursor-pointer" onClick={() => {
+                          const url = encodeURIComponent(window.location.href);
+                          const text = encodeURIComponent(`Check out ${token.name} ($${token.ticker}) on MoonPad!`);
+                          window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank');
+                          handleInteraction('share');
+                        }}>
+                          <Twitter className="mr-2 h-4 w-4" />
+                          <span>Twitter</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="focus:bg-[#2a2a2a] cursor-pointer" onClick={() => {
+                          const url = encodeURIComponent(window.location.href);
+                          const text = encodeURIComponent(`Check out ${token.name} ($${token.ticker}) on MoonPad!`);
+                          window.open(`https://t.me/share/url?url=${url}&text=${text}`, '_blank');
+                          handleInteraction('share');
+                        }}>
+                          <Send className="mr-2 h-4 w-4" />
+                          <span>Telegram</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <span className="text-white text-xs font-semibold mt-1">
-                      {formatViews(Number(currentVideo?.shares_count || 100))}
+                      {formatViews(Number(currentVideo?.shares_count || 0))}
                     </span>
                   </div>
                 </div>

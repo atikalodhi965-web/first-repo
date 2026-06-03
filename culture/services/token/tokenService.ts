@@ -111,12 +111,33 @@ export const tokenService = {
   },
 
   createPoolAndBuy: async (params: any) => {
-    const response = await axios.post(`${API_BASE_URL}/meteora/pool-and-buy`, params);
+    // Correct the structure for the backend API
+    const payload = {
+      createPoolParam: {
+        config: params.config,
+        payer: params.payer,
+        poolCreator: params.poolCreator,
+        name: params.name,
+        symbol: params.symbol,
+        uri: params.uri,
+        baseTokenType: 0, // SPL
+        quoteTokenType: 0  // SPL
+      },
+      buyAmount: params.buyAmount,
+      minimumAmountOut: params.minimumAmountOut || "1",
+      launchMode: params.launchMode
+    };
+    const response = await axios.post(`${API_BASE_URL}/meteora/pool-and-buy`, payload);
     return response.data;
   },
 
   finalizeToken: async (params: FinalizeTokenParams) => {
     const response = await axios.post(`${API_BASE_URL}/tokenapis/finalize-token`, params);
+    return response.data;
+  },
+  
+  finalizeTokenWithBuy: async (params: FinalizeTokenParams) => {
+    const response = await axios.post(`${API_BASE_URL}/tokenapis/finalize-token-with-buy`, params);
     return response.data;
   },
 

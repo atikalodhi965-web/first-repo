@@ -458,7 +458,7 @@ export function SignUpModal({ open, onOpenChange, onSuccess }: SignUpModalProps)
             ) : step === "referral" ? (
               <div className="flex flex-col gap-6 py-4">
                 <div className="space-y-4">
-                  <div className="space-y-1.5">
+                  <div className="space-y-4">
                     <label className="text-xs font-semibold text-[#a0a0a0] uppercase tracking-wider">Referral Code</label>
                     <Input
                       placeholder="Enter code"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useMemo, useEffect, useCallback } from "react"
 import Image from "next/image"
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
@@ -15,7 +15,7 @@ import { useAuthStore } from "@/store/authStore"
 import { useWalletModal } from "@solana/wallet-adapter-react-ui"
 import { tokenService } from "@/services/token/tokenService"
 import { SignUpModal } from "@/components/sign-up-modal"
-import { useEffect, useCallback } from "react"
+
 import { useSearchParams, useRouter } from "next/navigation"
 import axios from "axios"
 import { Transaction, Connection } from "@solana/web3.js"
@@ -58,6 +58,7 @@ export default function CreateTokenPage() {
   const [imageIpfsUrl, setImageIpfsUrl] = useState("")
   const [videoUrl, setVideoUrl] = useState("")
   const [uploadedR2Key, setUploadedR2Key] = useState("")
+  const [solPrice, setSolPrice] = useState<number>(0)
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.1.148:8080/api"
 
@@ -160,15 +161,66 @@ export default function CreateTokenPage() {
 
   useEffect(() => {
     setMounted(true)
+    // Fetch SOL price on mount
+    fetch("https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112")
+      .then(res => res.json())
+      .then(data => {
+        const price = data?.data?.So11111111111111111111111111111111111111112?.price
+        if (price) setSolPrice(Number(price))
+      })
+      .catch(console.error)
   }, [])
 
-  const ownershipPresets = [
-    { percent: "1%", amount: 27 },
-    { percent: "10%", amount: 286 },
-    { percent: "30%", amount: 1038 },
-    { percent: "50%", amount: 2191 },
-    { percent: "80%", amount: 6537 },
-  ]
+  // Bonding Curve Constants (Estimated for Meteora DBC linear curve)
+  // Total Supply = 1,000,000,000
+  // Target SOL = 85 (approximate for migration)
+  const TOTAL_SUPPLY = 1000000000
+  const TARGET_SOL = 85 
+
+  const calculateOwnership = (usdAmount: string) => {
+    if (!usdAmount || isNaN(parseFloat(usdAmount)) || !solPrice) return { sol: 0, tokens: 0, percent: 0 }
+    
+    const usd = parseFloat(usdAmount)
+    const sol = usd / solPrice
+    
+    // Using linear curve formula: Cost C = (k/2) * x^2  where x is tokens
+    // If TARGET_SOL buys TOTAL_SUPPLY, then TARGET_SOL = (k/2) * TOTAL_SUPPLY^2
+    // k/2 = TARGET_SOL / TOTAL_SUPPLY^2
+    // x = sqrt(C / (k/2)) = sqrt(sol * TOTAL_SUPPLY^2 / TARGET_SOL) = TOTAL_SUPPLY * sqrt(sol / TARGET_SOL)
+    
+    const tokens = TOTAL_SUPPLY * Math.sqrt(sol / TARGET_SOL)
+    const percent = (tokens / TOTAL_SUPPLY) * 100
+    
+    return { 
+      sol: Number(sol.toFixed(4)), 
+      tokens: Math.floor(tokens), 
+      percent: Number(Math.min(100, percent).toFixed(2)) 
+    }
+  }
+
+  const ownershipData = calculateOwnership(ownershipAmount)
+
+  const ownershipPresets = useMemo(() => {
+    if (!solPrice) return [
+      { percent: "1%", amount: 27 },
+      { percent: "10%", amount: 286 },
+      { percent: "30%", amount: 1038 },
+      { percent: "50%", amount: 2191 },
+      { percent: "80%", amount: 6537 },
+    ]
+
+    // Calculate USD amounts required for specific percentages
+    // C = TARGET_SOL * (p/100)^2
+    const getUds = (p: number) => Math.round(TARGET_SOL * Math.pow(p / 100, 2) * solPrice)
+
+    return [
+      { percent: "1%", amount: getUds(1) },
+      { percent: "5%", amount: getUds(5) },
+      { percent: "10%", amount: getUds(10) },
+      { percent: "25%", amount: getUds(25) },
+      { percent: "50%", amount: getUds(50) },
+    ]
+  }, [solPrice, TARGET_SOL])
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -337,6 +389,7 @@ export default function CreateTokenPage() {
 
     setLoading(true)
     const toastId = toast.loading("Preparing token launch...")
+    let finalTxId = ""
 
     try {
       // 1. Finalize Metadata (JSON) upload to IPFS
@@ -355,8 +408,6 @@ export default function CreateTokenPage() {
 
       if (!metadataRes.success) throw new Error(metadataRes.error)
       const metadataUri = metadataRes.metadataUri
-      console.log("Final metadata URI:", metadataUri)
-      console.log("Current imageIpfsUrl in state:", imageIpfsUrl)
 
       // 2. Get Transactions from Backend
       toast.loading("Generating transaction...", { id: toastId })
@@ -371,7 +422,7 @@ export default function CreateTokenPage() {
         name: name,
         symbol: ticker,
         uri: metadataUri,
-        buyAmount: parseFloat(ownershipAmount) || 0,
+        buyAmount: ownershipData.sol, // Send SOL amount to backend
         launchMode: launchType
       }
 
@@ -381,27 +432,51 @@ export default function CreateTokenPage() {
 
       if (!poolRes.success) throw new Error(poolRes.error)
 
-      // 3. Sign Transaction
-      toast.loading("Please sign the transaction in your wallet...", { id: toastId })
+      // 3. Sign Transaction(s)
+      toast.loading("Please sign the transactions in your wallet...", { id: toastId })
 
       const connection = new Connection("https://api.devnet.solana.com", "confirmed")
-      const tx = Transaction.from(Buffer.from(poolRes.transaction, 'base64'))
+      const txsToSign: Transaction[] = []
+      
+      const mainTx = Transaction.from(Buffer.from(poolRes.transaction, 'base64'))
+      txsToSign.push(mainTx)
 
-      if (!signTransaction) throw new Error("Wallet does not support transaction signing")
+      if (poolRes.commissionTransaction) {
+        const commTx = Transaction.from(Buffer.from(poolRes.commissionTransaction, 'base64'))
+        txsToSign.push(commTx)
+      }
 
-      const signedTx = await signTransaction(tx)
-      console.log("sighned tx: ", signedTx)
+      if (txsToSign.length > 1) {
+        if (!signAllTransactions) throw new Error("Wallet does not support multiple transaction signing")
+        const signedTxs = await signAllTransactions(txsToSign)
+        
+        toast.loading("Sending transactions to network...", { id: toastId })
+        
+        // Send main transaction
+        const txId = await connection.sendRawTransaction(signedTxs[0].serialize())
+        console.log("Main tx id: ", txId)
+        
+        // Send commission transaction in background
+        await connection.sendRawTransaction(signedTxs[1].serialize()).catch(err => {
+          console.error("Failed to send commission tx:", err)
+        })
 
-      // 4. Send and Confirm
-      toast.loading("Sending transaction to network...", { id: toastId })
-
-      const txId = await connection.sendRawTransaction(signedTx.serialize())
-      console.log("tx id: ", txId)
-      await connection.confirmTransaction(txId)
+        await connection.confirmTransaction(txId)
+        finalTxId = txId
+      } else {
+        if (!signTransaction) throw new Error("Wallet does not support transaction signing")
+        const signedTx = await signTransaction(mainTx)
+        
+        toast.loading("Sending transaction to network...", { id: toastId })
+        const txId = await connection.sendRawTransaction(signedTx.serialize())
+        await connection.confirmTransaction(txId)
+        finalTxId = txId
+      }
 
       // 5. Finalize in Database
       toast.loading("Finalizing launch...", { id: toastId })
-      const finalizeRes = await tokenService.finalizeToken({
+      
+      const finalizeParams = {
         mintAddress: poolRes.baseMintAddress,
         name,
         symbol: ticker,
@@ -415,41 +490,23 @@ export default function CreateTokenPage() {
         twitterVerified,
         tiktokVerified,
         creatorId: user.id,
-        txHash: txId,
+        txHash: finalTxId,
         poolAddress: poolRes.poolAddress,
         configAddress: FIXED_CONFIG_ADDRESS,
         r2Key: uploadedR2Key,
         videoUrl: videoUrl,
-        buyAmount: parseFloat(ownershipAmount) || 0,
-        tokensReceived: poolRes.tokensReceived || 0,
-        price: poolRes.price || 0
-      })
+        buyAmount: ownershipData.sol || 0,
+        tokensReceived: poolRes.tokensReceived || ownershipData.tokens || 0,
+        price: poolRes.price || (ownershipData.tokens > 0 ? ownershipData.sol / ownershipData.tokens : 0)
+      };
+
+      // Call the appropriate finalize endpoint based on whether there was an initial buy
+      const finalizeRes = (ownershipData.sol > 0)
+        ? await tokenService.finalizeTokenWithBuy(finalizeParams)
+        : await tokenService.finalizeToken(finalizeParams);
 
       if (finalizeRes.success) {
-        // 6. Record Initial Swap if ownership was set
-        // This ensures the trade history, charts, and PnL are correctly initialized
-        if (parseFloat(ownershipAmount) > 0) {
-          toast.loading("Recording initial purchase...", { id: toastId })
-          try {
-            await tokenService.recordSwap({
-              userId: user.id,
-              coinId: poolRes.baseMintAddress, // mintAddress is the coinId
-              type: 'buy',
-              price: poolRes.price || 0,
-              inputAmount: parseFloat(ownershipAmount),
-              outputAmount: poolRes.tokensReceived || 0,
-              txHash: txId,
-              usdValue: parseFloat(ownershipAmount), // Assuming 1:1 for simplicity or backend handles conversion
-              poolAddress: poolRes.poolAddress,
-              creatorId: user.id
-            });
-          } catch (swapErr) {
-            console.error("Initial swap recording failed:", swapErr);
-            // We don't throw here to avoid failing the whole process since token is already created and finalized
-          }
-        }
-
-        // 7. Finalize the video entry if video exists
+        // 6. Record Initial Video Entry if video exists
         if (uploadedR2Key) {
           try {
             await tokenService.finalizeVideo({
@@ -944,25 +1001,20 @@ export default function CreateTokenPage() {
               />
               {errors.ownershipAmount && <p className="ml-1 text-[10px] font-medium text-red-500/80">{errors.ownershipAmount}</p>}
               {ownershipAmount && parseFloat(ownershipAmount) > 0 && (
-                <p className="mt-2 text-sm text-[#6a6a6a]">
-                  {(() => {
-                    const amount = parseFloat(ownershipAmount)
-                    const preset = ownershipPresets.find(p => p.amount === amount)
-                    if (preset) return `${preset.percent} ownership`
-                    // Calculate percentage based on linear interpolation from presets
-                    // Using the 1% = $27 ratio as base
-                    const percentage = (amount / 27) * 1
-                    if (percentage < 1) return `${percentage.toFixed(1)}% ownership`
-                    if (percentage > 100) return `100% ownership`
-                    return `${Math.round(percentage)}% ownership`
-                  })()}
-                </p>
+                <div className="mt-2 flex flex-col gap-1">
+                  <p className="text-sm font-medium text-[#4ade80]">
+                    ≈ {ownershipData.sol} SOL
+                  </p>
+                  <p className="text-xs text-[#6a6a6a]">
+                    Receiving ≈ {ownershipData.tokens.toLocaleString()} tokens ({ownershipData.percent}%)
+                  </p>
+                </div>
               )}
             </div>
 
             {/* Preset Buttons */}
             <div className="mt-4 grid grid-cols-5 gap-2">
-              {ownershipPresets.map((preset) => (
+              {ownershipPresets.map((preset: { percent: string, amount: number }) => (
                 <button
                   key={preset.percent}
                   onClick={() => setOwnershipAmount(preset.amount.toString())}
