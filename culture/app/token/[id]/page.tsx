@@ -5,7 +5,7 @@
  * Last updated: 2026-03-19
  */
 
-import { useState, use, useEffect, useMemo, useRef } from "react"
+import { useState, use, useEffect, useMemo, useRef, useCallback } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { tokenService } from "@/services/token/tokenService"
@@ -41,8 +41,10 @@ import {
   Share2,
   Twitter,
   Copy,
-  Check
+  Check,
+  Wallet
 } from "lucide-react"
+import { PublicKey } from "@solana/web3.js"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -217,9 +219,6 @@ const defaultToken = {
   createdAt: new Date().toISOString(),
   description: "Token not found",
   volume24h: 0,
-  volume5m: 0,
-  volume1h: 0,
-  volume6h: 0,
   price: 0,
   totalSupply: 0,
   creator: "Unknown",
@@ -228,9 +227,7 @@ const defaultToken = {
   twitter: "",
   website: "",
   telegram: "",
-  tiktok: "",
-  athPrice: 0,
-  athMarketCap: 0
+  tiktok: ""
 }
 
 
@@ -244,11 +241,10 @@ const videos = [
   { id: 6, thumbnail: "https://picsum.photos/seed/vid6/300/400", views: 45600, caption: "", isPinned: false },
 ]
 
-function formatViews(num: number | undefined | null): string {
-  const n = num || 0
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return n.toString()
+function formatViews(num: number): string {
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`
+  return num.toString()
 }
 
 const comments = [
@@ -259,19 +255,12 @@ const comments = [
   { id: 5, user: "0x6b8...a2c1", message: "Best meme coin launch I've seen this week. Solid tokenomics.", time: "1h ago", likes: 22 },
 ]
 
-const holders = [
-  { rank: 1, address: "0x7f3...9a2c", percentage: 8.2, value: 73164 },
-  { rank: 2, address: "0x4a1...bc3d", percentage: 5.4, value: 48168 },
-  { rank: 3, address: "0x9e2...f1ab", percentage: 4.1, value: 36572 },
-  { rank: 4, address: "0x2c4...d8ef", percentage: 3.8, value: 33896 },
-  { rank: 5, address: "0x6b8...a2c1", percentage: 2.9, value: 25868 },
-]
 
-function formatNumber(num: number | undefined | null): string {
-  const n = num || 0
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`
-  return `$${n.toFixed(2)}`
+
+function formatNumber(num: number): string {
+  if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(2)}M`
+  if (num >= 1_000) return `$${(num / 1_000).toFixed(1)}K`
+  return `$${num.toFixed(2)}`
 }
 
 export default function Page({ params }: { params: Promise<{ id: string }> }) {
@@ -283,6 +272,9 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
   const [currentVideo, setCurrentVideo] = useState<any>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
+
+  const [holdersList, setHoldersList] = useState<any[]>([])
+  const [isHoldersLoading, setIsHoldersLoading] = useState(false)
 
   useEffect(() => {
     const fetchToken = async () => {
@@ -320,6 +312,8 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
             tiktok: d.tiktok_url || "",
             athPrice: parseFloat(d.ath_price || "0"),
             athMarketCap: parseFloat(d.ath_marketcap || "0"),
+            bondingCurrentAmount: parseFloat(d.bonding_current_amount || "0"),
+            bondingTargetAmount: parseFloat(d.bonding_target_amount || "100"), // Assume 100 SOL if not set
           });
 
           // Fetch videos with current user ID to get 'is_liked' status
@@ -327,6 +321,9 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
           if (vidRes.success && vidRes.videos && vidRes.videos.length > 0) {
             setCurrentVideo(vidRes.videos[0]);
           }
+
+          // Fetch holders
+          fetchHolders();
         }
       } catch (err) {
         console.error("Failed to fetch token details:", err);
@@ -336,6 +333,21 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
     };
     fetchToken();
   }, [id]);
+
+  const fetchHolders = async () => {
+    setIsHoldersLoading(true);
+    try {
+      const res = await tokenService.getHolders(id, 20); // Fetch top 20
+      if (res.success && res.data) {
+        // Backend already sorts by tokens_held desc
+        setHoldersList(res.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch holders:", err);
+    } finally {
+      setIsHoldersLoading(false);
+    }
+  };
 
   const togglePlay = () => {
     if (videoRef.current) {
@@ -355,7 +367,7 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
         const shareUrl = window.location.href;
         navigator.clipboard.writeText(shareUrl);
         toast.success("Link copied to clipboard!");
-        
+
         // Optimistic Update: Increase share count immediately
         setCurrentVideo((prev: any) => ({
           ...prev,
@@ -378,7 +390,7 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
       }
 
       const res = await videoService.interactWithVideo(currentVideo.id, action, authUser?.id);
-      
+
       // If server returned a definitive state, sync it (especially for likes)
       if (res.success && action === 'like') {
         setCurrentVideo((prev: any) => ({
@@ -409,18 +421,43 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
   const [frontRunProtection, setFrontRunProtection] = useState(false)
   const [tipAmount, setTipAmount] = useState("0.003")
 
-  const { connected, balance, publicKey, processSerializedTransaction } = useSolanaWallet()
+  const { connected, balance, publicKey, processSerializedTransaction, connection } = useSolanaWallet()
+  const [tokenBalance, setTokenBalance] = useState<number>(0);
+
+  // Fetch token balance when connected
+  const fetchTokenBalance = useCallback(async () => {
+    if (!publicKey || !token.contractAddress || !connection) return;
+    try {
+      const response = await connection.getTokenAccountsByOwner(publicKey, {
+        mint: new PublicKey(token.contractAddress)
+      });
+
+      if (response.value.length > 0) {
+        const accountInfo = await connection.getTokenAccountBalance(response.value[0].pubkey);
+        setTokenBalance(accountInfo.value.uiAmount || 0);
+      } else {
+        setTokenBalance(0);
+      }
+    } catch (err) {
+      console.error("Error fetching token balance:", err);
+      setTokenBalance(0);
+    }
+  }, [publicKey, token.contractAddress, connection]);
+
+  useEffect(() => {
+    if (connected && token.contractAddress) {
+      fetchTokenBalance();
+    }
+  }, [connected, token.contractAddress, fetchTokenBalance]);
 
   // Instant frontend calculation for swap quote
   const estimatedOutputRaw = useMemo(() => {
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0 || !token.price) return 0;
     const numAmount = parseFloat(amount);
     if (tradeType === "buy") {
-      console.log("token price: ", token.price);
       // You pay SOL, receive Token
       return numAmount / token.price;
     } else {
-      console.log("token price: ", token.price);
       // You pay Token, receive SOL
       return numAmount * token.price;
     }
@@ -563,34 +600,59 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
         if (signature) {
           console.log("Meteora Swap Transaction Successful! Signature:", signature);
 
-          // RECORD THE SWAP ON BACKEND
-          try {
-            const outAmountHuman = tradeType === 'buy'
-              ? (quote?.outAmount ? parseFloat(quote.outAmount) / 10 ** 6 : estimatedOutputRaw)
-              : (quote?.outAmount ? parseFloat(quote.outAmount) / 10 ** 9 : estimatedOutputRaw);
+          const recordToastId = toast.loading("Confirming on blockchain and indexing trade...");
 
-            await tokenService.recordSwap({
-              userId: authUser?.id || "",
-              coinId: id,
-              type: tradeType,
-              price: token.price,
-              inputAmount: parseFloat(amount),
-              outputAmount: outAmountHuman,
-              txHash: signature,
-              usdValue: tradeType === 'buy' ? parseFloat(amount) : outAmountHuman,
-              creatorId: token.creatorId,
-              poolAddress: token.poolAddress
-            });
-          } catch (recErr) {
-            console.error("Error recording swap on backend:", recErr);
-          }
+          // RECORD THE SWAP ON BACKEND
+          // Adding a small delay to ensure the transaction is searchable on-chain for the backend stats update
+          setTimeout(async () => {
+            try {
+              if (!authUser?.id) {
+                console.error("No authenticated user found for swap recording");
+                toast.error("Trade executed but record failed: No user state", { id: recordToastId });
+                return;
+              }
+
+              const outAmountHuman = tradeType === 'buy'
+                ? (quote?.outAmount ? parseFloat(quote.outAmount) / 10 ** 6 : estimatedOutputRaw)
+                : (quote?.outAmount ? parseFloat(quote.outAmount) / 10 ** 9 : estimatedOutputRaw);
+
+              console.log("Recording swap with params:", {
+                userId: authUser.id,
+                coinId: id,
+                type: tradeType,
+                txHash: signature
+              });
+
+              const recRes = await tokenService.recordSwap({
+                userId: authUser.id,
+                coinId: id,
+                type: tradeType,
+                price: token.price,
+                inputAmount: parseFloat(amount),
+                outputAmount: outAmountHuman,
+                txHash: signature,
+                usdValue: tradeType === 'buy' ? parseFloat(amount) : outAmountHuman,
+                creatorId: token.creatorId,
+                poolAddress: token.poolAddress
+              });
+
+              if (recRes && recRes.success) {
+                toast.success("Trade recorded and charts updated!", { id: recordToastId });
+                // Refresh balances after recording
+                fetchTokenBalance();
+              } else {
+                console.error("Backend failed to record swap:", recRes?.error);
+                toast.error(`Indexing failed: ${recRes?.error || "Unknown server error"}`, { id: recordToastId });
+              }
+            } catch (recErr) {
+              console.error("Error calling record-swap API:", recErr);
+              toast.error("Server communication error during indexing", { id: recordToastId });
+            }
+          }, 1500);
 
           toast.success("Swap executed successfully!");
           setAmount("")
           setQuote(null)
-
-          // Optionally refresh token details to show updated price/mcap
-          // window.location.reload(); 
         }
       } else {
         toast.error(res.error || "Swap failed")
@@ -838,7 +900,7 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                     <p className="text-[10px] text-muted-foreground">Market Cap</p>
                     <p className="text-lg font-bold">{formatNumber(token.marketCap)}</p>
                     <span className={cn("text-xs font-medium", isPositive ? "text-success" : "text-destructive")}>
-                      {isPositive ? "+" : ""}{(token.priceChange24h || 0).toFixed(2)}% 24h
+                      {isPositive ? "+" : ""}{token.priceChange24h.toFixed(2)}% 24h
                     </span>
                   </div>
                   <div className="flex items-center gap-2 flex-1">
@@ -873,13 +935,13 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
               <Card className="border-border/50 bg-card/50">
                 <CardContent className="p-3">
                   <p className="text-xs text-muted-foreground">Price</p>
-                  <p className="text-base font-bold">${(token.price || 0).toFixed(6)}</p>
+                  <p className="text-base font-bold">${token.price.toFixed(6)}</p>
                   <div className={cn(
                     "flex items-center gap-1 text-xs font-medium",
                     isPositive ? "text-success" : "text-destructive"
                   )}>
                     {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                    {Math.abs(token.priceChange24h || 0).toFixed(1)}%
+                    {Math.abs(token.priceChange24h).toFixed(1)}%
                   </div>
                 </CardContent>
               </Card>
@@ -1014,7 +1076,10 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                       {tradeType === "buy" ? "You pay" : "You sell"}
                     </span>
                     <span className="text-muted-foreground">
-                      Balance: {connected ? (balance !== null ? balance.toFixed(4) : "0.00") : "0.00"} SOL
+                      Balance: {tradeType === "buy"
+                        ? `${connected ? (balance !== null ? balance.toFixed(4) : "0.00") : "0.00"} SOL`
+                        : `${connected ? tokenBalance.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "0"} ${token.ticker}`
+                      }
                     </span>
                   </div>
                   <div className="relative">
@@ -1056,8 +1121,8 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                         size="sm"
                         className="flex-1 text-xs h-7 px-1"
                         onClick={() => {
-                          // This is an approximation. To do this perfectly, you need the token balance.
-                          setAmount((val / 100 * 1000).toString()) // Mock implementation
+                          const calculated = (val / 100) * tokenBalance;
+                          setAmount(calculated.toString());
                         }}
                         disabled={isSwapping}
                       >
@@ -1151,8 +1216,8 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                   />
                 </div>
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>{((token.bondingProgress || 0) * 0.85).toFixed(1)} SOL in bonding curve</span>
-                  <span>${((100 - token.bondingProgress) * 425).toLocaleString()} to graduate</span>
+                  <span>{token.bondingCurrentAmount?.toFixed(2) || "0.00"} SOL in bonding curve</span>
+                  <span>{(Math.max(0, (token.bondingTargetAmount || 100) - (token.bondingCurrentAmount || 0))).toFixed(2)} SOL to graduate</span>
                 </div>
               </CardContent>
             </Card>
@@ -1218,26 +1283,36 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
               <CardContent className="p-4 pb-0">
                 <p className="font-semibold mb-3">Top Holders</p>
                 <div className="divide-y divide-border/50">
-                  {holders.map((holder) => (
-                    <div key={holder.rank} className="flex items-center justify-between py-3">
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold",
-                          holder.rank === 1 && "bg-primary/10 text-primary",
-                          holder.rank === 2 && "bg-muted text-foreground",
-                          holder.rank === 3 && "bg-chart-5/10 text-chart-5",
-                          holder.rank > 3 && "bg-secondary text-muted-foreground"
-                        )}>
-                          {holder.rank}
-                        </div>
-                        <div>
-                          <p className="font-medium">{holder.address}</p>
-                          <p className="text-sm text-muted-foreground">{holder.percentage}% of supply</p>
-                        </div>
-                      </div>
-                      <p className="font-medium">{formatNumber(holder.value)}</p>
+                  {isHoldersLoading ? (
+                    <div className="flex justify-center py-8">
+                      <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full"></div>
                     </div>
-                  ))}
+                  ) : holdersList.length > 0 ? (
+                    holdersList.map((holder, index) => (
+                      <div key={holder.user_id} className="flex items-center justify-between py-3">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold",
+                            (index + 1) === 1 && "bg-primary/10 text-primary",
+                            (index + 1) === 2 && "bg-muted text-foreground",
+                            (index + 1) === 3 && "bg-chart-5/10 text-chart-5",
+                            (index + 1) > 3 && "bg-secondary text-muted-foreground"
+                          )}>
+                            {index + 1}
+                          </div>
+                          <div>
+                            <p className="font-medium max-w-[120px] truncate">
+                              {holder.username || (holder.wallet_address ? `${holder.wallet_address.slice(0, 4)}...${holder.wallet_address.slice(-4)}` : "Unknown")}
+                            </p>
+                            <p className="text-sm text-muted-foreground">{holder.percentage.toFixed(2)}% of supply</p>
+                          </div>
+                        </div>
+                        <p className="font-medium">{formatNumber(holder.value_usd)}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-center py-8 text-sm text-muted-foreground">No holders found</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

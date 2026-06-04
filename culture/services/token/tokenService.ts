@@ -135,7 +135,7 @@ export const tokenService = {
     const response = await axios.post(`${API_BASE_URL}/tokenapis/finalize-token`, params);
     return response.data;
   },
-  
+
   finalizeTokenWithBuy: async (params: FinalizeTokenParams) => {
     const response = await axios.post(`${API_BASE_URL}/tokenapis/finalize-token-with-buy`, params);
     return response.data;
@@ -224,7 +224,7 @@ export const tokenService = {
     const response = await axios.get(`${API_BASE_URL}/trades/coin/${coinId}?${query.toString()}`);
     return response.data;
   },
-  
+
   recordSwap: async (params: {
     userId: string;
     coinId: string;
@@ -241,7 +241,7 @@ export const tokenService = {
     const response = await axios.post(`${API_BASE_URL}/trades/record-swap`, params);
     return response.data;
   },
-  
+
   getHolders: async (coinId: string, limit: number = 50) => {
     const response = await axios.get(`${API_BASE_URL}/tokenapis/holders/${coinId}?limit=${limit}`);
     return response.data;
