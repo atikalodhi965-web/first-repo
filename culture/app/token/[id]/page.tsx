@@ -290,7 +290,7 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
             image: d.logo_url || d.image_url || "https://picsum.photos/seed/unknown/400/400",
             marketCap: parseFloat(d.market_cap || "0"),
             priceChange24h: parseFloat(d.price_change_24h || "0"),
-            bondingProgress: d.bonding_target_amount ? (parseFloat(d.bonding_current_amount || "0") / parseFloat(d.bonding_target_amount)) * 100 : 0,
+            bondingProgress: parseFloat(d.bonding_progress || "0"),
             holders: 0,
             createdAt: d.created_at || new Date().toISOString(),
             description: d.description || "",
@@ -653,6 +653,11 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
           toast.success("Swap executed successfully!");
           setAmount("")
           setQuote(null)
+          
+          // Reload to refresh all content as requested
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
         }
       } else {
         toast.error(res.error || "Swap failed")
@@ -935,7 +940,9 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
               <Card className="border-border/50 bg-card/50">
                 <CardContent className="p-3">
                   <p className="text-xs text-muted-foreground">Price</p>
-                  <p className="text-base font-bold">${token.price.toFixed(6)}</p>
+                  <p className="text-base font-bold break-all leading-tight">
+                    ${token.price < 0.00001 ? token.price.toFixed(10) : token.price.toFixed(6)}
+                  </p>
                   <div className={cn(
                     "flex items-center gap-1 text-xs font-medium",
                     isPositive ? "text-success" : "text-destructive"
@@ -1302,7 +1309,7 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                           </div>
                           <div>
                             <p className="font-medium max-w-[120px] truncate">
-                              {holder.username || (holder.wallet_address ? `${holder.wallet_address.slice(0, 4)}...${holder.wallet_address.slice(-4)}` : "Unknown")}
+                              {holder.wallet_address ? `${holder.wallet_address.slice(0, 4)}...${holder.wallet_address.slice(-4)}` : (holder.username || "Unknown")}
                             </p>
                             <p className="text-sm text-muted-foreground">{holder.percentage.toFixed(2)}% of supply</p>
                           </div>

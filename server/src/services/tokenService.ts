@@ -146,7 +146,9 @@ export async function finalizeTokenService(
       total_supply: totalSupplyValue,
       current_price: currentPrice,
       market_cap: marketCap,
-      // tx_hash: txHash,  // Added tx_hash
+      bonding_target_amount: 100, // Default target 100 SOL
+      bonding_current_amount: 0,
+      bonding_progress: 0,
     });
 
     // coin_media (Main record)
