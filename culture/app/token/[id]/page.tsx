@@ -217,6 +217,9 @@ const defaultToken = {
   createdAt: new Date().toISOString(),
   description: "Token not found",
   volume24h: 0,
+  volume5m: 0,
+  volume1h: 0,
+  volume6h: 0,
   price: 0,
   totalSupply: 0,
   creator: "Unknown",
@@ -225,7 +228,9 @@ const defaultToken = {
   twitter: "",
   website: "",
   telegram: "",
-  tiktok: ""
+  tiktok: "",
+  athPrice: 0,
+  athMarketCap: 0
 }
 
 
@@ -239,10 +244,11 @@ const videos = [
   { id: 6, thumbnail: "https://picsum.photos/seed/vid6/300/400", views: 45600, caption: "", isPinned: false },
 ]
 
-function formatViews(num: number): string {
-  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`
-  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`
-  return num.toString()
+function formatViews(num: number | undefined | null): string {
+  const n = num || 0
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return n.toString()
 }
 
 const comments = [
@@ -261,10 +267,11 @@ const holders = [
   { rank: 5, address: "0x6b8...a2c1", percentage: 2.9, value: 25868 },
 ]
 
-function formatNumber(num: number): string {
-  if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(2)}M`
-  if (num >= 1_000) return `$${(num / 1_000).toFixed(1)}K`
-  return `$${num.toFixed(2)}`
+function formatNumber(num: number | undefined | null): string {
+  const n = num || 0
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`
+  return `$${n.toFixed(2)}`
 }
 
 export default function Page({ params }: { params: Promise<{ id: string }> }) {
@@ -831,7 +838,7 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                     <p className="text-[10px] text-muted-foreground">Market Cap</p>
                     <p className="text-lg font-bold">{formatNumber(token.marketCap)}</p>
                     <span className={cn("text-xs font-medium", isPositive ? "text-success" : "text-destructive")}>
-                      {isPositive ? "+" : ""}{token.priceChange24h.toFixed(2)}% 24h
+                      {isPositive ? "+" : ""}{(token.priceChange24h || 0).toFixed(2)}% 24h
                     </span>
                   </div>
                   <div className="flex items-center gap-2 flex-1">
@@ -866,13 +873,13 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
               <Card className="border-border/50 bg-card/50">
                 <CardContent className="p-3">
                   <p className="text-xs text-muted-foreground">Price</p>
-                  <p className="text-base font-bold">${token.price.toFixed(6)}</p>
+                  <p className="text-base font-bold">${(token.price || 0).toFixed(6)}</p>
                   <div className={cn(
                     "flex items-center gap-1 text-xs font-medium",
                     isPositive ? "text-success" : "text-destructive"
                   )}>
                     {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                    {Math.abs(token.priceChange24h).toFixed(1)}%
+                    {Math.abs(token.priceChange24h || 0).toFixed(1)}%
                   </div>
                 </CardContent>
               </Card>
@@ -1144,7 +1151,7 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                   />
                 </div>
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>{(token.bondingProgress * 0.85).toFixed(1)} SOL in bonding curve</span>
+                  <span>{((token.bondingProgress || 0) * 0.85).toFixed(1)} SOL in bonding curve</span>
                   <span>${((100 - token.bondingProgress) * 425).toLocaleString()} to graduate</span>
                 </div>
               </CardContent>

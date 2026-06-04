@@ -98,6 +98,7 @@ export const useSolanaWallet = () => {
         sendTransaction,
         signTransaction,
         signAllTransactions,
-        disconnect
+        disconnect,
+        connection
     };
 };

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.1.148:8080/api";
 
 export interface CreateTokenMetadataParams {
   tokenName: string;
@@ -239,6 +239,11 @@ export const tokenService = {
     poolAddress: string;
   }) => {
     const response = await axios.post(`${API_BASE_URL}/trades/record-swap`, params);
+    return response.data;
+  },
+  
+  getHolders: async (coinId: string, limit: number = 50) => {
+    const response = await axios.get(`${API_BASE_URL}/tokenapis/holders/${coinId}?limit=${limit}`);
     return response.data;
   }
 };

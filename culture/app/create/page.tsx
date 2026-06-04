@@ -161,40 +161,63 @@ export default function CreateTokenPage() {
 
   useEffect(() => {
     setMounted(true)
-    // Fetch SOL price on mount
-    fetch("https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112")
-      .then(res => res.json())
-      .then(data => {
-        const price = data?.data?.So11111111111111111111111111111111111111112?.price
-        if (price) setSolPrice(Number(price))
-      })
-      .catch(console.error)
+    const loadPrice = async () => {
+      try {
+        console.log("Fetching SOL price...");
+        // Primary: Jupiter
+        let response = await axios.get("https://api.jup.ag/price/v2?ids=SOL")
+        console.log("Jupiter response: ", response)
+        let price = response.data?.data?.SOL?.price
+
+        if (!price) {
+          // Secondary: DexScreener
+          console.log("Jupiter price failed, trying DexScreener...");
+          response = await axios.get("https://api.dexscreener.com/latest/dex/tokens/So11111111111111111111111111111111111111112")
+          console.log("DexScreener response: ", response)
+          price = response.data?.pairs?.[0]?.priceUsd
+        }
+
+        if (price) {
+          console.log("SOL price fetched:", price);
+          setSolPrice(Number(price))
+        } else {
+          throw new Error("No price found in any API");
+        }
+      } catch (err) {
+        console.error("Failed to fetch SOL price from all APIs:", err)
+        setSolPrice(165) // Final UI fallback
+      }
+    }
+    loadPrice()
   }, [])
 
   // Bonding Curve Constants (Estimated for Meteora DBC linear curve)
   // Total Supply = 1,000,000,000
   // Target SOL = 85 (approximate for migration)
   const TOTAL_SUPPLY = 1000000000
-  const TARGET_SOL = 85 
+  const TARGET_SOL = 85
 
   const calculateOwnership = (usdAmount: string) => {
     if (!usdAmount || isNaN(parseFloat(usdAmount)) || !solPrice) return { sol: 0, tokens: 0, percent: 0 }
-    
+
     const usd = parseFloat(usdAmount)
-    const sol = usd / solPrice
-    
+    // Use fallback price if solPrice is 0 to avoid showing 0 values
+    const currentPrice = solPrice || 165
+    console.log("current sol price: ", currentPrice)
+    const sol = usd / currentPrice
+
     // Using linear curve formula: Cost C = (k/2) * x^2  where x is tokens
     // If TARGET_SOL buys TOTAL_SUPPLY, then TARGET_SOL = (k/2) * TOTAL_SUPPLY^2
     // k/2 = TARGET_SOL / TOTAL_SUPPLY^2
     // x = sqrt(C / (k/2)) = sqrt(sol * TOTAL_SUPPLY^2 / TARGET_SOL) = TOTAL_SUPPLY * sqrt(sol / TARGET_SOL)
-    
+
     const tokens = TOTAL_SUPPLY * Math.sqrt(sol / TARGET_SOL)
     const percent = (tokens / TOTAL_SUPPLY) * 100
-    
-    return { 
-      sol: Number(sol.toFixed(4)), 
-      tokens: Math.floor(tokens), 
-      percent: Number(Math.min(100, percent).toFixed(2)) 
+
+    return {
+      sol: Number(sol.toFixed(4)),
+      tokens: Math.floor(tokens),
+      percent: Number(Math.min(100, percent).toFixed(2))
     }
   }
 
@@ -437,7 +460,7 @@ export default function CreateTokenPage() {
 
       const connection = new Connection("https://api.devnet.solana.com", "confirmed")
       const txsToSign: Transaction[] = []
-      
+
       const mainTx = Transaction.from(Buffer.from(poolRes.transaction, 'base64'))
       txsToSign.push(mainTx)
 
@@ -449,13 +472,13 @@ export default function CreateTokenPage() {
       if (txsToSign.length > 1) {
         if (!signAllTransactions) throw new Error("Wallet does not support multiple transaction signing")
         const signedTxs = await signAllTransactions(txsToSign)
-        
+
         toast.loading("Sending transactions to network...", { id: toastId })
-        
+
         // Send main transaction
         const txId = await connection.sendRawTransaction(signedTxs[0].serialize())
         console.log("Main tx id: ", txId)
-        
+
         // Send commission transaction in background
         await connection.sendRawTransaction(signedTxs[1].serialize()).catch(err => {
           console.error("Failed to send commission tx:", err)
@@ -466,7 +489,7 @@ export default function CreateTokenPage() {
       } else {
         if (!signTransaction) throw new Error("Wallet does not support transaction signing")
         const signedTx = await signTransaction(mainTx)
-        
+
         toast.loading("Sending transaction to network...", { id: toastId })
         const txId = await connection.sendRawTransaction(signedTx.serialize())
         await connection.confirmTransaction(txId)
@@ -475,7 +498,7 @@ export default function CreateTokenPage() {
 
       // 5. Finalize in Database
       toast.loading("Finalizing launch...", { id: toastId })
-      
+
       const finalizeParams = {
         mintAddress: poolRes.baseMintAddress,
         name,
@@ -1003,7 +1026,7 @@ export default function CreateTokenPage() {
               {ownershipAmount && parseFloat(ownershipAmount) > 0 && (
                 <div className="mt-2 flex flex-col gap-1">
                   <p className="text-sm font-medium text-[#4ade80]">
-                    ≈ {ownershipData.sol} SOL
+                    {solPrice ? `≈ ${ownershipData.sol} SOL` : "Loading price..."}
                   </p>
                   <p className="text-xs text-[#6a6a6a]">
                     Receiving ≈ {ownershipData.tokens.toLocaleString()} tokens ({ownershipData.percent}%)
