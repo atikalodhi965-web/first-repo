@@ -13,6 +13,7 @@ import { videoService } from "@/services/video/videoService"
 import { Header } from "@/components/header"
 import { TokenComments } from "@/components/token-comments"
 import { TokenTrades } from "@/components/token-trades"
+import { TokenVideos } from "@/components/token-videos"
 import { TokenChart } from "@/components/token-chart"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -233,14 +234,7 @@ const defaultToken = {
 
 
 
-const videos = [
-  { id: 1, thumbnail: "https://picsum.photos/seed/vid1/300/400", views: 333300, caption: "", isPinned: true },
-  { id: 2, thumbnail: "https://picsum.photos/seed/vid2/300/400", views: 3269, caption: "", isPinned: false },
-  { id: 3, thumbnail: "https://picsum.photos/seed/vid3/300/400", views: 3752, caption: "Dev explains the roadmap", isPinned: false },
-  { id: 4, thumbnail: "https://picsum.photos/seed/vid4/300/400", views: 78200, caption: "", isPinned: false },
-  { id: 5, thumbnail: "https://picsum.photos/seed/vid5/300/400", views: 12400, caption: "Community AMA highlights", isPinned: false },
-  { id: 6, thumbnail: "https://picsum.photos/seed/vid6/300/400", views: 45600, caption: "", isPinned: false },
-]
+
 
 function formatViews(num: number): string {
   if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`
@@ -378,6 +372,14 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
         // Notify backend in background
         videoService.interactWithVideo(currentVideo.id, 'share', authUser?.id);
         return;
+      }
+
+      // Optimistically update views local state
+      if (action === 'view') {
+        setCurrentVideo((prev: any) => ({
+          ...prev,
+          views_count: Number(prev?.views_count || 0) + 1
+        }));
       }
 
       // Optimistically update likes local state for better responsiveness
@@ -704,7 +706,10 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                     className="h-full w-full object-cover"
                     loop
                     playsInline
-                    onPlay={() => setIsPlaying(true)}
+                    onPlay={() => {
+                      setIsPlaying(true);
+                      handleInteraction('view');
+                    }}
                     onPause={() => setIsPlaying(false)}
                   />
                 ) : (
@@ -994,46 +999,7 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
               </TabsList>
 
               <TabsContent value="videos" className="mt-4">
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                  {videos.map((video) => (
-                    <div
-                      key={video.id}
-                      className="group relative aspect-[3/4] cursor-pointer overflow-hidden rounded-xl bg-secondary"
-                    >
-                      <Image
-                        src={video.thumbnail}
-                        alt={video.caption || `Video ${video.id}`}
-                        fill
-                        className="object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-
-                      {video.isPinned && (
-                        <Badge className="absolute left-2 top-2 gap-1 bg-pink-500 text-white hover:bg-pink-500">
-                          <Pin className="h-3 w-3" />
-                          Pinned
-                        </Badge>
-                      )}
-
-                      {video.caption && (
-                        <div className="absolute bottom-10 left-2 right-2">
-                          <p className="text-sm font-medium text-white line-clamp-2">{video.caption}</p>
-                        </div>
-                      )}
-
-                      <div className="absolute bottom-2 left-2 flex items-center gap-1.5 text-white">
-                        <Play className="h-4 w-4 fill-white" />
-                        <span className="text-sm font-medium">{formatViews(video.views)}</span>
-                      </div>
-
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 transition-opacity group-hover:opacity-100">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
-                          <Play className="h-7 w-7 fill-white text-white" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <TokenVideos coinId={id} />
               </TabsContent>
 
               <TabsContent value="comments" className="mt-4">
