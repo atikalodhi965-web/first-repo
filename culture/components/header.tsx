@@ -28,7 +28,6 @@ export function Header() {
   const [mounted, setMounted] = useState(false)
 
   const { isAuthenticated, user, logout } = useAuthStore()
-  console.log(user, "useerrrrr")
   const { publicKey, connected, balance, loadingBalance, disconnect } = useSolanaWallet()
   const { setVisible } = useWalletModal()
 
@@ -95,11 +94,9 @@ export function Header() {
     }
   }, [connected, publicKey, isAuthenticated, user?.id, mounted]);
 
-  const imageUrl =
-    user?.profile_image_url?.startsWith('http')
-      ? user.profile_image_url
-      : `https://${user?.profile_image_url}`;
-  console.log(imageUrl, "imageUrl")
+  const imageUrl = user?.profile_image_url 
+    ? (user.profile_image_url.startsWith('http') ? user.profile_image_url : `https://${user.profile_image_url}`)
+    : "https://picsum.photos/seed/user123/100/100";
 
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 4)}...${addr.slice(-4)}`
