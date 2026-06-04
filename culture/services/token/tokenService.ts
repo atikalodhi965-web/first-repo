@@ -245,6 +245,13 @@ export const tokenService = {
   getHolders: async (coinId: string, limit: number = 50) => {
     const response = await axios.get(`${API_BASE_URL}/tokenapis/holders/${coinId}?limit=${limit}`);
     return response.data;
+  },
+
+  getChartData: async (coinId: string, timeframe: string = '1m', limit: number = 1000) => {
+    const response = await axios.get(`${API_BASE_URL}/trades/charts/${coinId}`, {
+      params: { timeframe, limit }
+    });
+    return response.data;
   }
 };
 

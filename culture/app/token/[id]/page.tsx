@@ -13,6 +13,7 @@ import { videoService } from "@/services/video/videoService"
 import { Header } from "@/components/header"
 import { TokenComments } from "@/components/token-comments"
 import { TokenTrades } from "@/components/token-trades"
+import { TokenChart } from "@/components/token-chart"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -924,15 +925,9 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
               </CardContent>
             </Card>
 
-            <Card className="border-border/50 bg-card/50">
-              <CardContent className="flex h-80 items-center justify-center p-4">
-                <div className="text-center">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
-                    <TrendingUp className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <p className="text-muted-foreground">Price Chart</p>
-                  <p className="text-sm text-muted-foreground">Coming soon</p>
-                </div>
+            <Card className="border-border/50 bg-card/50 overflow-hidden">
+              <CardContent className="p-4 pt-6">
+                <TokenChart coinId={id} tokenName={token.name} ticker={token.ticker} />
               </CardContent>
             </Card>
 
