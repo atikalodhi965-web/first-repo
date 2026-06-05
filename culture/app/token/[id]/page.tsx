@@ -483,10 +483,11 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
         console.log("amount: ", amount);
         console.log("slippage: ", slippage);
         console.log("poolAddress: ", token.poolAddress);
+        const amountInAtomic = Math.floor(parseFloat(amount) * (tradeType === 'buy' ? 10 ** 9 : 10 ** 6)).toString();
         const res = await tokenService.getSwapQuote({
           inputToken,
           outputToken,
-          amount: amount, // Passed exactly in raw/human-readable amount field
+          amount: amountInAtomic,
           slippage: slippage,
           poolAddress: token.poolAddress
         });
@@ -583,11 +584,13 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
 
     setIsSwapping(true)
     try {
-      // Meteora backend expects amounts in atomic units (lamports/decimals). Defaulting to 9 decimals.
-      const amountInAtomic = Math.floor(parseFloat(amount) * 10 ** 9).toString();
+      // Meteora backend expects amounts in atomic units (lamports/decimals). 
+      // Buy: Input SOL (9 decimals), Output Token (6 decimals)
+      // Sell: Input Token (6 decimals), Output SOL (9 decimals)
+      const amountInAtomic = Math.floor(parseFloat(amount) * (tradeType === "buy" ? 10 ** 9 : 10 ** 6)).toString();
       const minOutAtomic = quote?.minimumAmountOut
         ? quote.minimumAmountOut
-        : Math.floor(estimatedOutputRaw * (1 - (parseFloat(slippage) / 100)) * 10 ** 9).toString();
+        : Math.floor(estimatedOutputRaw * (1 - (parseFloat(slippage) / 100)) * (tradeType === "buy" ? 10 ** 6 : 10 ** 9)).toString();
 
       const res = await tokenService.swapTokens({
         owner: publicKey.toString(),
@@ -1106,14 +1109,19 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                     <span className="font-medium flex items-center gap-2">
                       {isQuoting ? (
                         <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                      ) : quote?.minimumAmountOut ? (
+                      ) : quote?.outAmount ? (
                         <>
-                          {parseFloat(quote.minimumAmountOut).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                          {(Number(quote.outAmount) / (tradeType === "buy" ? 1e6 : 1e9)).toLocaleString(undefined, { maximumFractionDigits: 8 })}
+                          <span className="text-xs text-muted-foreground ml-1">{tradeType === "buy" ? token.ticker : "SOL"}</span>
+                        </>
+                      ) : quote?.minimumAmountOut ? (
+                         <>
+                          {(Number(quote.minimumAmountOut) / (tradeType === "buy" ? 1e6 : 1e9)).toLocaleString(undefined, { maximumFractionDigits: 8 })}
                           <span className="text-xs text-muted-foreground ml-1">{tradeType === "buy" ? token.ticker : "SOL"}</span>
                         </>
                       ) : estimatedOutputRaw > 0 ? (
                         <>
-                          {estimatedOutputRaw.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                          {estimatedOutputRaw.toLocaleString(undefined, { maximumFractionDigits: 8 })}
                           <span className="text-xs text-muted-foreground ml-1">{tradeType === "buy" ? token.ticker : "SOL"}</span>
                         </>
                       ) : "0.00"}

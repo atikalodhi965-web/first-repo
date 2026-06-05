@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Header } from "@/components/header"
@@ -28,112 +28,9 @@ import { User } from "@/types/auth"
 import { useSolanaWallet } from "@/hooks/useSolanaWallet"
 import { toast } from "sonner"
 import { API_ROUTES } from "@/constants/apiRoutes"
+import { tokenService } from "@/services/token/tokenService"
 
-// Mock coins held with detailed position stats
-const coinsHeld = [
-  {
-    id: "1",
-    name: "DogeMaster",
-    ticker: "DMASTER",
-    image: "https://picsum.photos/seed/doge1/100/100",
-    balance: 125000,
-    value: 2875,
-    avgBuyPrice: 0.000018,
-    currentPrice: 0.000023,
-    invested: 2250,
-    pnl: 625,
-    pnlPercent: 27.8,
-    sold: 500,
-    realized: 150,
-  },
-  {
-    id: "3",
-    name: "PepeGold",
-    ticker: "PGOLD",
-    image: "https://picsum.photos/seed/pepe1/100/100",
-    balance: 89000,
-    value: 4450,
-    avgBuyPrice: 0.000042,
-    currentPrice: 0.00005,
-    invested: 3738,
-    pnl: 712,
-    pnlPercent: 19.0,
-    sold: 0,
-    realized: 0,
-  },
-  {
-    id: "6",
-    name: "ChadCoin",
-    ticker: "CHAD",
-    image: "https://picsum.photos/seed/chad1/100/100",
-    balance: 250000,
-    value: 1500,
-    avgBuyPrice: 0.0000065,
-    currentPrice: 0.000006,
-    invested: 1625,
-    pnl: -125,
-    pnlPercent: -7.7,
-    sold: 50000,
-    realized: -28,
-  },
-  {
-    id: "9",
-    name: "RocketPup",
-    ticker: "RPUP",
-    image: "https://picsum.photos/seed/rocket1/100/100",
-    balance: 45000,
-    value: 675,
-    avgBuyPrice: 0.000012,
-    currentPrice: 0.000015,
-    invested: 540,
-    pnl: 135,
-    pnlPercent: 25.0,
-    sold: 15000,
-    realized: 67,
-  }
-]
-
-// Calculate portfolio totals
-const portfolioStats = {
-  totalValue: coinsHeld.reduce((sum, coin) => sum + coin.value, 0),
-  totalInvested: coinsHeld.reduce((sum, coin) => sum + coin.invested, 0),
-  totalPnl: coinsHeld.reduce((sum, coin) => sum + coin.pnl, 0),
-  totalRealized: coinsHeld.reduce((sum, coin) => sum + coin.realized, 0),
-}
-
-// Mock creator earnings data
-const creatorEarnings = {
-  totalEarned: 72590,
-  coins: [
-    {
-      id: "custom1",
-      name: "MyMeme",
-      ticker: "MYMEME",
-      image: "https://picsum.photos/seed/mymeme/100/100",
-      totalEarned: 45230,
-      unclaimed: 1250,
-      isShareable: true
-    },
-    {
-      id: "custom2",
-      name: "WhaleToken",
-      ticker: "WHALE",
-      image: "https://picsum.photos/seed/whale2/100/100",
-      totalEarned: 18500,
-      unclaimed: 0,
-      isShareable: true
-    },
-    {
-      id: "custom3",
-      name: "MoonShot",
-      ticker: "MOON",
-      image: "https://picsum.photos/seed/moon2/100/100",
-      totalEarned: 8860,
-      unclaimed: 340,
-      isShareable: false
-    }
-  ]
-}
+// Followers and Following Mocks (can stay if they are still needed for fallback, but they are mostly replaced by real lists)
 
 // Mock followers
 const followers = [
@@ -192,6 +89,8 @@ function ProfileContent() {
     totalEarned: 0,
     coins: []
   })
+  const [realCoinsHeld, setRealCoinsHeld] = useState<any[]>([])
+  const [isCoinsLoading, setIsCoinsLoading] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -204,6 +103,16 @@ function ProfileContent() {
   })
 
   const router = useRouter()
+
+  // Calculate real portfolio totals
+  const realPortfolioStats = useMemo(() => {
+    return {
+      totalValue: realCoinsHeld.reduce((sum, coin) => sum + (coin.tokens_held * coin.current_price), 0),
+      totalInvested: realCoinsHeld.reduce((sum, coin) => sum + (coin.tokens_held * coin.avg_buy_price), 0),
+      totalUnrealizedPnl: realCoinsHeld.reduce((sum, coin) => sum + (coin.unrealized_pnl || 0), 0),
+      totalRealized: realCoinsHeld.reduce((sum, coin) => sum + (coin.realized_pnl || 0), 0),
+    }
+  }, [realCoinsHeld])
 
   const fetchProfileData = async () => {
     try {
@@ -249,7 +158,7 @@ function ProfileContent() {
         })
       }
 
-      // 3. If logged in, fetch current user's following list to show "Follow/Following" buttons correctly
+      // 4. If logged in, fetch current user's following list to show "Follow/Following" buttons correctly
       if (authUser?.id) {
         const myFollowingRes = await fetchApi<{ success: boolean; data: any[] }>(`/user/following/${authUser.id}`)
         if (myFollowingRes.success) {
@@ -258,6 +167,14 @@ function ProfileContent() {
           setIsFollowing(ids.has(targetId))
         }
       }
+
+      // 5. Fetch Coins Held
+      setIsCoinsLoading(true)
+      const coinsRes = await tokenService.getCoinsHeld(targetId)
+      if (coinsRes.success) {
+        setRealCoinsHeld(coinsRes.data || [])
+      }
+      setIsCoinsLoading(false)
 
     } catch (error: any) {
       console.error("Error fetching profile data:", error)
@@ -590,28 +507,28 @@ function ProfileContent() {
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                   <div className="rounded-xl bg-secondary/30 p-3">
                     <p className="text-xs text-muted-foreground">Total Value</p>
-                    <p className="text-lg font-bold">{formatNumber(portfolioStats.totalValue)}</p>
+                    <p className="text-lg font-bold">{formatNumber(realPortfolioStats.totalValue)}</p>
                   </div>
                   <div className="rounded-xl bg-secondary/30 p-3">
                     <p className="text-xs text-muted-foreground">Total Invested</p>
-                    <p className="text-lg font-bold">{formatNumber(portfolioStats.totalInvested)}</p>
+                    <p className="text-lg font-bold">{formatNumber(realPortfolioStats.totalInvested)}</p>
                   </div>
                   <div className="rounded-xl bg-secondary/30 p-3">
                     <p className="text-xs text-muted-foreground">Unrealized P&L</p>
                     <p className={cn(
                       "text-lg font-bold",
-                      portfolioStats.totalPnl >= 0 ? "text-green-500" : "text-red-500"
+                      realPortfolioStats.totalUnrealizedPnl >= 0 ? "text-green-500" : "text-red-500"
                     )}>
-                      {portfolioStats.totalPnl >= 0 ? "+" : ""}{formatNumber(portfolioStats.totalPnl)}
+                      {realPortfolioStats.totalUnrealizedPnl >= 0 ? "+" : ""}{formatNumber(realPortfolioStats.totalUnrealizedPnl)}
                     </p>
                   </div>
                   <div className="rounded-xl bg-secondary/30 p-3">
                     <p className="text-xs text-muted-foreground">Realized P&L</p>
                     <p className={cn(
                       "text-lg font-bold",
-                      portfolioStats.totalRealized >= 0 ? "text-green-500" : "text-red-500"
+                      realPortfolioStats.totalRealized >= 0 ? "text-green-500" : "text-red-500"
                     )}>
-                      {portfolioStats.totalRealized >= 0 ? "+" : ""}{formatNumber(portfolioStats.totalRealized)}
+                      {realPortfolioStats.totalRealized >= 0 ? "+" : ""}{formatNumber(realPortfolioStats.totalRealized)}
                     </p>
                   </div>
                 </div>
@@ -619,69 +536,79 @@ function ProfileContent() {
 
               {/* Coins List */}
               <div className="divide-y divide-border/50">
-                {coinsHeld.map((coin) => (
-                  <Link
-                    key={coin.id}
-                    href={`/token/${coin.id}`}
-                    className="block p-4 hover:bg-secondary/30 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="relative h-12 w-12 overflow-hidden rounded-full">
-                          <Image src={coin.image} alt={coin.name} fill className="object-cover" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">{coin.name}</span>
-                            <span className="text-sm text-muted-foreground">${coin.ticker}</span>
+                {isCoinsLoading ? (
+                  <div className="flex items-center justify-center p-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : realCoinsHeld.length > 0 ? (
+                  realCoinsHeld.map((coin) => (
+                    <Link
+                      key={coin.id}
+                      href={`/token/${coin.id}`}
+                      className="block p-4 hover:bg-secondary/30 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="relative h-12 w-12 overflow-hidden rounded-full">
+                            <Image src={coin.logo_url || "https://picsum.photos/seed/token/100/100"} alt={coin.name} fill className="object-cover" />
                           </div>
-                          <p className="text-sm text-muted-foreground">
-                            {coin.balance.toLocaleString()} tokens
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">{coin.name}</span>
+                              <span className="text-sm text-primary">${coin.symbol}</span>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {coin.tokens_held.toLocaleString()} tokens
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold">{formatNumber(coin.tokens_held * coin.current_price)}</p>
+                          <p className={cn(
+                            "text-sm font-medium",
+                            coin.pnl_percentage >= 0 ? "text-green-500" : "text-red-500"
+                          )}>
+                            {coin.pnl_percentage >= 0 ? "+" : ""}{coin.pnl_percentage.toFixed(1)}%
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-semibold">{formatNumber(coin.value)}</p>
-                        <p className={cn(
-                          "text-sm font-medium",
-                          coin.pnlPercent >= 0 ? "text-green-500" : "text-red-500"
-                        )}>
-                          {coin.pnlPercent >= 0 ? "+" : ""}{coin.pnlPercent.toFixed(1)}%
-                        </p>
-                      </div>
-                    </div>
 
-                    {/* Position Details */}
-                    <div className="mt-3 grid grid-cols-4 gap-2 text-xs">
-                      <div className="rounded-lg bg-secondary/20 p-2">
-                        <p className="text-muted-foreground">Avg Buy</p>
-                        <p className="font-medium">${coin.avgBuyPrice.toFixed(6)}</p>
+                      {/* Position Details */}
+                      <div className="mt-3 grid grid-cols-4 gap-2 text-xs">
+                        <div className="rounded-lg bg-secondary/20 p-2">
+                          <p className="text-muted-foreground">Avg Buy</p>
+                          <p className="font-medium">${coin.avg_buy_price < 0.0001 ? coin.avg_buy_price.toFixed(8) : coin.avg_buy_price.toFixed(6)}</p>
+                        </div>
+                        <div className="rounded-lg bg-secondary/20 p-2">
+                          <p className="text-muted-foreground">Current</p>
+                          <p className="font-medium">${coin.current_price < 0.0001 ? coin.current_price.toFixed(8) : coin.current_price.toFixed(6)}</p>
+                        </div>
+                        <div className="rounded-lg bg-secondary/20 p-2">
+                          <p className="text-muted-foreground">Unrealized</p>
+                          <p className={cn(
+                            "font-medium",
+                            coin.unrealized_pnl >= 0 ? "text-green-500" : "text-red-500"
+                          )}>
+                            {coin.unrealized_pnl >= 0 ? "+" : ""}{formatNumber(coin.unrealized_pnl)}
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-secondary/20 p-2">
+                          <p className="text-muted-foreground">Realized</p>
+                          <p className={cn(
+                            "font-medium",
+                            coin.realized_pnl >= 0 ? "text-green-500" : "text-red-500"
+                          )}>
+                            {coin.realized_pnl >= 0 ? "+" : ""}{formatNumber(coin.realized_pnl)}
+                          </p>
+                        </div>
                       </div>
-                      <div className="rounded-lg bg-secondary/20 p-2">
-                        <p className="text-muted-foreground">Current</p>
-                        <p className="font-medium">${coin.currentPrice.toFixed(6)}</p>
-                      </div>
-                      <div className="rounded-lg bg-secondary/20 p-2">
-                        <p className="text-muted-foreground">Unrealized</p>
-                        <p className={cn(
-                          "font-medium",
-                          coin.pnl >= 0 ? "text-green-500" : "text-red-500"
-                        )}>
-                          {coin.pnl >= 0 ? "+" : ""}{formatNumber(coin.pnl)}
-                        </p>
-                      </div>
-                      <div className="rounded-lg bg-secondary/20 p-2">
-                        <p className="text-muted-foreground">Realized</p>
-                        <p className={cn(
-                          "font-medium",
-                          coin.realized >= 0 ? "text-green-500" : "text-red-500"
-                        )}>
-                          {coin.realized >= 0 ? "+" : ""}{formatNumber(coin.realized)}
-                        </p>
-                      </div>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  ))
+                ) : (
+                  <div className="p-12 text-center text-muted-foreground">
+                    No coins held yet.
+                  </div>
+                )}
               </div>
             </TabsContent>
 
