@@ -1158,15 +1158,26 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                   )}
                   size="lg"
                   onClick={handleSwap}
-                  disabled={isSwapping || (!quote && estimatedOutputRaw <= 0)}
+                  disabled={
+                    isSwapping || 
+                    !connected || 
+                    !authUser || 
+                    !amount || 
+                    parseFloat(amount) <= 0 || 
+                    (tradeType === "sell" && tokenBalance < parseFloat(amount))
+                  }
                 >
                   {isSwapping ? (
                     <div className="flex items-center gap-2">
                       <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
                       Processing...
                     </div>
+                  ) : !connected || !authUser ? (
+                    "Connect Wallet to Trade"
+                  ) : tradeType === "sell" && amount && parseFloat(amount) > tokenBalance ? (
+                    "Insufficient Balance"
                   ) : (
-                    <>{tradeType === "buy" ? "Buy" : "Sell"} ${token.ticker}</>
+                    <>{tradeType === "buy" ? "Buy" : "Sell"} {token.ticker}</>
                   )}
                 </Button>
 
